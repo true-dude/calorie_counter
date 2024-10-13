@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 def init_db():
     conn = psycopg2.connect("dbname=calories user=postgres password=postgres host=db")
     cur = conn.cursor()
+    
+    # Таблица для блюд
     cur.execute('''
         CREATE TABLE IF NOT EXISTS dishes (
             id SERIAL PRIMARY KEY,
@@ -15,6 +17,17 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    
+    # Таблица для съеденных блюд
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS consumed (
+            id SERIAL PRIMARY KEY,
+            dish_id INT REFERENCES dishes(id),
+            quantity FLOAT,  -- Количество съеденного блюда (в граммах)
+            consumed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
     conn.commit()
     cur.close()
     conn.close()
@@ -27,15 +40,6 @@ def add_dish(name, protein, fat, carbs, calories):
     conn.commit()
     cur.close()
     conn.close()
-
-def get_dishes():
-    conn = psycopg2.connect("dbname=calories user=postgres password=postgres host=db")
-    cur = conn.cursor()
-    cur.execute('SELECT * FROM dishes ORDER BY created_at DESC')
-    dishes = cur.fetchall()
-    cur.close()
-    conn.close()
-    return dishes
 
 def edit_dish(id, name, protein, fat, carbs, calories):
     conn = psycopg2.connect("dbname=calories user=postgres password=postgres host=db")
@@ -54,46 +58,58 @@ def delete_dish(id):
     cur.close()
     conn.close()
 
-def search_dishes(query):
+def get_dishes():
     conn = psycopg2.connect("dbname=calories user=postgres password=postgres host=db")
     cur = conn.cursor()
-    cur.execute('SELECT * FROM dishes WHERE name ILIKE %s', (f'%{query}%',))
-    results = cur.fetchall()
+    cur.execute('SELECT id, name, calories FROM dishes ORDER BY created_at DESC')
+    dishes = cur.fetchall()
     cur.close()
     conn.close()
-    return results
+    return dishes
 
-def get_calories_by_date():
+def get_dish_by_id(id):
     conn = psycopg2.connect("dbname=calories user=postgres password=postgres host=db")
     cur = conn.cursor()
-    
+    cur.execute('SELECT id, name, protein, fat, carbs, calories FROM dishes WHERE id = %s', (id,))
+    dish = cur.fetchone()
+    cur.close()
+    conn.close()
+    return dish
+
+def add_consumed(dish_id, quantity):
+    conn = psycopg2.connect("dbname=calories user=postgres password=postgres host=db")
+    cur = conn.cursor()
+    cur.execute('INSERT INTO consumed (dish_id, quantity) VALUES (%s, %s)', (dish_id, quantity))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def get_consumed():
+    conn = psycopg2.connect("dbname=calories user=postgres password=postgres host=db")
+    cur = conn.cursor()
     cur.execute('''
-        SELECT DATE(created_at), SUM(calories)
-        FROM dishes
-        WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
-        GROUP BY DATE(created_at)
-        ORDER BY DATE(created_at)
+        SELECT dishes.name, consumed.quantity, dishes.calories, consumed.consumed_at
+        FROM consumed
+        JOIN dishes ON consumed.dish_id = dishes.id
+        ORDER BY consumed.consumed_at DESC
     ''')
-    
-    results = cur.fetchall()
+    consumed = cur.fetchall()
     cur.close()
     conn.close()
+    return consumed
 
-    labels = [str(row[0]) for row in results]
-    data = [row[1] for row in results]
-    return labels, data
-    
 def get_calories_by_minute():
     conn = psycopg2.connect("dbname=calories user=postgres password=postgres host=db")
     cur = conn.cursor()
 
-    # Получение данных за последние 10 минут с группировкой по минутам
+    # Получение данных по съеденным калориям за последние 10 минут
     cur.execute('''
-        SELECT DATE_TRUNC('minute', created_at), SUM(calories)
-        FROM dishes
-        WHERE created_at >= NOW() - INTERVAL '10 minutes'
-        GROUP BY DATE_TRUNC('minute', created_at)
-        ORDER BY DATE_TRUNC('minute', created_at)
+        SELECT DATE_TRUNC('minute', consumed_at), SUM(dishes.calories * (consumed.quantity / 100))
+        FROM consumed
+        JOIN dishes ON consumed.dish_id = dishes.id
+        WHERE consumed_at >= NOW() - INTERVAL '10 minutes'
+        GROUP BY DATE_TRUNC('minute', consumed_at)
+        ORDER BY DATE_TRUNC('minute', consumed_at)
     ''')
     
     results = cur.fetchall()
@@ -104,12 +120,10 @@ def get_calories_by_minute():
     labels = []
     data = []
 
-    # Формирование данных по каждой минуте за последние 10 минут
     current_time = datetime.now()
     for i in range(10):
         minute_label = (current_time - timedelta(minutes=i)).strftime('%H:%M')
-        labels.insert(0, minute_label)  # Вставляем в начало списка, чтобы шло от старых данных к новым
-        # Проверяем, есть ли записи за это время
+        labels.insert(0, minute_label)
         found = False
         for row in results:
             if row[0].strftime('%H:%M') == minute_label:
@@ -117,6 +131,6 @@ def get_calories_by_minute():
                 found = True
                 break
         if not found:
-            data.insert(0, 0)  # Если данных нет, ставим 0 калорий
+            data.insert(0, 0)
     
     return labels, data
