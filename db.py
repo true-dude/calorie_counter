@@ -5,7 +5,6 @@ def init_db():
     conn = psycopg2.connect("dbname=calories user=postgres password=postgres host=db")
     cur = conn.cursor()
     
-    # Таблица для блюд
     cur.execute('''
         CREATE TABLE IF NOT EXISTS dishes (
             id SERIAL PRIMARY KEY,
@@ -18,7 +17,6 @@ def init_db():
         )
     ''')
     
-    # Таблица для съеденных блюд
     cur.execute('''
         CREATE TABLE IF NOT EXISTS consumed (
             id SERIAL PRIMARY KEY,
