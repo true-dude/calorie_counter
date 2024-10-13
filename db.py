@@ -102,7 +102,6 @@ def get_calories_by_minute():
     conn = psycopg2.connect("dbname=calories user=postgres password=postgres host=db")
     cur = conn.cursor()
 
-    # Получение данных по съеденным калориям за последние 10 минут
     cur.execute('''
         SELECT DATE_TRUNC('minute', consumed_at), SUM(dishes.calories * (consumed.quantity / 100))
         FROM consumed
@@ -116,7 +115,6 @@ def get_calories_by_minute():
     cur.close()
     conn.close()
 
-    # Подготовка данных для Chart.js
     labels = []
     data = []
 

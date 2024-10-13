@@ -33,7 +33,6 @@ def edit(id):
         edit_dish(id, name, protein, fat, carbs, calories)
         return redirect(url_for('index'))
     
-    # Если это GET-запрос, отобразить форму редактирования
     dish = get_dish_by_id(id)
     return render_template('edit.html', dish=dish)
 
