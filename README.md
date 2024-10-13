@@ -33,3 +33,7 @@
     ```bash
     docker compose down
     ```
+
+4. ***Видео обзор приложения***
+
+   [Видео на Яндекс Диске](https://disk.yandex.ru/i/knW_3WwuljCcvA)
